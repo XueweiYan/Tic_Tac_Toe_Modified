@@ -1,3 +1,4 @@
+import os
 import numpy as np
 import pandas as pd
 from random import random
@@ -6,28 +7,54 @@ from sympy.utilities.iterables import multiset_permutations as perm
 
 class Player:
 
-    def __init__(self):
-        self.valid_lines = [[0, 1, 2], [3, 4, 5], [6, 7, 8], [0, 3, 6],
+    def __init__(self, database=None):
+        self._valid_lines = [[0, 1, 2], [3, 4, 5], [6, 7, 8], [0, 3, 6],
                             [1, 4, 7], [2, 5, 8], [0, 4, 8], [2, 4, 6]]
-        self.alpha = 0.3  # Learn rate
-        self.epsilon = 0.5  # Explore rate
-        self.consider_win = 0.9999  # Meaning the state almost guarantees a winning, no need to explore
-        self.df_6 = self.initialize_df_6()
-        self.df_5 = self.initialize_df_5()
-        self.df_4 = self.initialize_df_4()
-        self.df_3 = self.initialize_df_3()
-        self.df_2 = self.initialize_df_2()
-        self.df_1 = self.initialize_df_1()
-        self.df_0 = self.initialize_df_0()
+        self._alpha = 0.5  # Learn rate
+        self._delta_epsilon = 0.00000001
+        self._min_epsilon = 0.01
+        self._consider_win = 0.9999  # Meaning the state almost guarantees a winning, no need to explore
+        if database is None:
+            self._epsilon = 0.5  # Explore rate
+            self.df_6 = self.initializedf_6()
+            self.df_5 = self.initializedf_5()
+            self.df_4 = self.initializedf_4()
+            self.df_3 = self.initializedf_3()
+            self.df_2 = self.initializedf_2()
+            self.df_1 = self.initializedf_1()
+            self.df_0 = self.initializedf_0()
+        else:
+            self._epsilon = 0.0
+            self.df_6 = pd.read_csv(database + "/df_6.csv").rename(columns={str(x): x for x in range(9)})
+            self.df_6["successor_X"] = self.df_6["successor_X"].apply(lambda x: [int(y) for y in x[1:-1].split(",")])
+            self.df_6["successor_O"] = self.df_6["successor_O"].apply(lambda x: [int(y) for y in x[1:-1].split(",")])
+
+            self.df_5 = pd.read_csv(database + "/df_5.csv").rename(columns={str(x): x for x in range(9)})
+            self.df_5["successor_O"] = self.df_5["successor_O"].apply(lambda x: [int(y) for y in x[1:-1].split(",")])
+
+            self.df_4 = pd.read_csv(database + "/df_4.csv").rename(columns={str(x): x for x in range(9)})
+            self.df_4["successor_X"] = self.df_4["successor_X"].apply(lambda x: [int(y) for y in x[1:-1].split(",")])
+
+            self.df_3 = pd.read_csv(database + "/df_3.csv").rename(columns={str(x): x for x in range(9)})
+            self.df_3["successor_O"] = self.df_3["successor_O"].apply(lambda x: [int(y) for y in x[1:-1].split(",")])
+
+            self.df_2 = pd.read_csv(database + "/df_2.csv").rename(columns={str(x): x for x in range(9)})
+            self.df_2["successor_X"] = self.df_2["successor_X"].apply(lambda x: [int(y) for y in x[1:-1].split(",")])
+
+            self.df_1 = pd.read_csv(database + "/df_1.csv").rename(columns={str(x): x for x in range(9)})
+            self.df_1["successor_O"] = self.df_1["successor_O"].apply(lambda x: [int(y) for y in x[1:-1].split(",")])
+
+            self.df_0 = pd.read_csv(database + "/df_0.csv").rename(columns={str(x): x for x in range(9)})
+            self.df_0["successor_X"] = self.df_0["successor_X"].apply(lambda x: [int(y) for y in x[1:-1].split(",")])
 
     def initialize_reward(self, row):
-        X_win = row.index[row == 'X'].tolist() in self.valid_lines
-        O_win = row.index[row == 'O'].tolist() in self.valid_lines
+        X_win = row.index[row == 'X'].tolist() in self._valid_lines
+        O_win = row.index[row == 'O'].tolist() in self._valid_lines
         if X_win and O_win:
             return 101  # A customized error code to mark impossible situations
         return 1 * X_win + (-1) * O_win  # 1 for player X winning, -1 for player O, 0 for none.
 
-    def initialize_df_6(self):
+    def initializedf_6(self):
         def find_successor_X(row):
             O_same = (
                 df_6.loc[(df_6[row.index[row == 'O']] == 'O').all(axis=1)]
@@ -55,7 +82,7 @@ class Player:
 
         return df_6
 
-    def initialize_df_5(self):
+    def initializedf_5(self):
         def find_successor_O(row):
             df_6_states = self.df_6.drop(columns=["reward_X", "successor_X", "successor_O", "game_over"])
             diff_count = (df_6_states != row.drop(["reward_X"])).sum(axis=1)
@@ -71,7 +98,7 @@ class Player:
 
         return df_5
 
-    def initialize_df_4(self):
+    def initializedf_4(self):
         def find_successor_X(row):
             df_5_states = self.df_5.drop(columns=["reward_X", "successor_O", "game_over"])
             diff_count = (df_5_states != row.drop(["reward_X"])).sum(axis=1)
@@ -85,7 +112,7 @@ class Player:
 
         return df_4
 
-    def initialize_df_3(self):
+    def initializedf_3(self):
         def find_successor_O(row):
             df_4_states = self.df_4.drop(columns=["reward_X", "successor_X", "game_over"])
             diff_count = (df_4_states != row.drop(["reward_X"])).sum(axis=1)
@@ -99,7 +126,7 @@ class Player:
 
         return df_3
 
-    def initialize_df_2(self):
+    def initializedf_2(self):
         def find_successor_X(row):
             df_3_states = self.df_3.drop(columns=["reward_X", "successor_O", "game_over"])
             diff_count = (df_3_states != row.drop(["reward_X"])).sum(axis=1)
@@ -113,7 +140,7 @@ class Player:
 
         return df_2
 
-    def initialize_df_1(self):
+    def initializedf_1(self):
         def find_successor_O(row):
             df_2_states = self.df_2.drop(columns=["reward_X", "successor_X", "game_over"])
             diff_count = (df_2_states != row.drop(["reward_X"])).sum(axis=1)
@@ -127,7 +154,7 @@ class Player:
 
         return df_1
 
-    def initialize_df_0(self):
+    def initializedf_0(self):
         def find_successor_X(row):
             df_1_states = self.df_1.drop(columns=["reward_X", "successor_O", "game_over"])
             diff_count = (df_1_states != row.drop(["reward_X"])).sum(axis=1)
@@ -149,13 +176,14 @@ class Player:
         successors = self.df_0.loc[0, "successor_X"]
         options = self.df_1.loc[successors]
         max_reward_X = options["reward_X"].max()
-        if (random() < self.epsilon) and (max_reward_X < self.consider_win):  # Explore move
+        if (random() < self._epsilon) and (max_reward_X < self._consider_win):  # Explore move
+            self._epsilon = max(self._epsilon - self._delta_epsilon, self._min_epsilon)
             return options.sample(n=1).index[0]
         else:  # Exploit move
             decision = options.loc[options["reward_X"] == max_reward_X].sample(n=1).index
             self.df_0.loc[0, "reward_X"] = (
                     self.df_0.loc[0, "reward_X"] +
-                    self.alpha * (max_reward_X - self.df_0.loc[0, "reward_X"])
+                    self._alpha * (max_reward_X - self.df_0.loc[0, "reward_X"])
             )
             return decision[0]
 
@@ -163,13 +191,14 @@ class Player:
         successors = self.df_1.loc[prev_decision, "successor_O"]
         options = self.df_2.loc[successors]
         min_reward_X = options["reward_X"].min()
-        if (random() < self.epsilon) and (min_reward_X > -self.consider_win):  # Explore move
+        if (random() < self._epsilon) and (min_reward_X > -self._consider_win):  # Explore move
+            self._epsilon = max(self._epsilon - self._delta_epsilon, self._min_epsilon)
             return options.sample(n=1).index[0]
         else:  # Exploit move
             decision = options.loc[options["reward_X"] == min_reward_X].sample(n=1).index
             self.df_1.loc[prev_decision, "reward_X"] = (
                     self.df_1.loc[prev_decision, "reward_X"] +
-                    self.alpha * (min_reward_X - self.df_1.loc[prev_decision, "reward_X"])
+                    self._alpha * (min_reward_X - self.df_1.loc[prev_decision, "reward_X"])
             )
             return decision[0]
 
@@ -177,13 +206,14 @@ class Player:
         successors = self.df_2.loc[prev_decision, "successor_X"]
         options = self.df_3.loc[successors]
         max_reward_X = options["reward_X"].max()
-        if (random() < self.epsilon) and (max_reward_X < self.consider_win):  # Explore move
+        if (random() < self._epsilon) and (max_reward_X < self._consider_win):  # Explore move
+            self._epsilon = max(self._epsilon - self._delta_epsilon, self._min_epsilon)
             return options.sample(n=1).index[0]
         else:  # Exploit move
             decision = options.loc[options["reward_X"] == max_reward_X].sample(n=1).index
             self.df_2.loc[prev_decision, "reward_X"] = (
                     self.df_2.loc[prev_decision, "reward_X"] +
-                    self.alpha * (max_reward_X - self.df_2.loc[prev_decision, "reward_X"])
+                    self._alpha * (max_reward_X - self.df_2.loc[prev_decision, "reward_X"])
             )
             return decision[0]
 
@@ -191,13 +221,14 @@ class Player:
         successors = self.df_3.loc[prev_decision, "successor_O"]
         options = self.df_4.loc[successors]
         min_reward_X = options["reward_X"].min()
-        if (random() < self.epsilon) and (min_reward_X > -self.consider_win):  # Explore move
+        if (random() < self._epsilon) and (min_reward_X > -self._consider_win):  # Explore move
+            self._epsilon = max(self._epsilon - self._delta_epsilon, self._min_epsilon)
             return options.sample(n=1).index[0]
         else:  # Exploit move
             decision = options.loc[options["reward_X"] == min_reward_X].sample(n=1).index
             self.df_3.loc[prev_decision, "reward_X"] = (
                     self.df_3.loc[prev_decision, "reward_X"] +
-                    self.alpha * (min_reward_X - self.df_3.loc[prev_decision, "reward_X"])
+                    self._alpha * (min_reward_X - self.df_3.loc[prev_decision, "reward_X"])
             )
             return decision[0]
 
@@ -205,13 +236,14 @@ class Player:
         successors = self.df_4.loc[prev_decision, "successor_X"]
         options = self.df_5.loc[successors]
         max_reward_X = options["reward_X"].max()
-        if (random() < self.epsilon) and (max_reward_X < self.consider_win):  # Explore move
+        if (random() < self._epsilon) and (max_reward_X < self._consider_win):  # Explore move
+            self._epsilon = max(self._epsilon - self._delta_epsilon, self._min_epsilon)
             return options.sample(n=1).index[0]
         else:  # Exploit move
             decision = options.loc[options["reward_X"] == max_reward_X].sample(n=1).index
             self.df_4.loc[prev_decision, "reward_X"] = (
                     self.df_4.loc[prev_decision, "reward_X"] +
-                    self.alpha * (max_reward_X - self.df_4.loc[prev_decision, "reward_X"])
+                    self._alpha * (max_reward_X - self.df_4.loc[prev_decision, "reward_X"])
             )
             return decision[0]
 
@@ -219,13 +251,14 @@ class Player:
         successors = self.df_5.loc[prev_decision, "successor_O"]
         options = self.df_6.loc[successors]
         min_reward_X = options["reward_X"].min()
-        if (random() < self.epsilon) and (min_reward_X > -self.consider_win):  # Explore move
+        if (random() < self._epsilon) and (min_reward_X > -self._consider_win):  # Explore move
+            self._epsilon = max(self._epsilon - self._delta_epsilon, self._min_epsilon)
             return options.sample(n=1).index[0]
         else:  # Exploit move
             decision = options.loc[options["reward_X"] == min_reward_X].sample(n=1).index
             self.df_5.loc[prev_decision, "reward_X"] = (
                     self.df_5.loc[prev_decision, "reward_X"] +
-                    self.alpha * (min_reward_X - self.df_5.loc[prev_decision, "reward_X"])
+                    self._alpha * (min_reward_X - self.df_5.loc[prev_decision, "reward_X"])
             )
             return decision[0]
 
@@ -234,26 +267,28 @@ class Player:
             successors = self.df_6.loc[prev_decision, "successor_X"]
             options = self.df_6.loc[successors]
             max_reward_X = options["reward_X"].max()
-            if (random() < self.epsilon) and (max_reward_X < self.consider_win):  # Explore move
+            if (random() < self._epsilon) and (max_reward_X < self._consider_win):  # Explore move
+                self._epsilon = max(self._epsilon - self._delta_epsilon, self._min_epsilon)
                 return options.sample(n=1).index[0]
             else:  # Exploit move
                 decision = options.loc[options["reward_X"] == max_reward_X].sample(n=1).index
                 self.df_6.loc[prev_decision, "reward_X"] = (
                         self.df_6.loc[prev_decision, "reward_X"] +
-                        self.alpha * (max_reward_X - self.df_6.loc[prev_decision, "reward_X"])
+                        self._alpha * (max_reward_X - self.df_6.loc[prev_decision, "reward_X"])
                 )
                 return decision[0]
         else:
             successors = self.df_6.loc[prev_decision, "successor_O"]
             options = self.df_6.loc[successors]
             min_reward_X = options["reward_X"].min()
-            if (random() < self.epsilon) and (min_reward_X > -self.consider_win):  # Explore move
+            if (random() < self._epsilon) and (min_reward_X > -self._consider_win):  # Explore move
+                self._epsilon = max(self._epsilon - self._delta_epsilon, self._min_epsilon)
                 return options.sample(n=1).index[0]
             else:  # Exploit move
                 decision = options.loc[options["reward_X"] == min_reward_X].sample(n=1).index
                 self.df_6.loc[prev_decision, "reward_X"] = (
                         self.df_6.loc[prev_decision, "reward_X"] +
-                        self.alpha * (min_reward_X - self.df_6.loc[prev_decision, "reward_X"])
+                        self._alpha * (min_reward_X - self.df_6.loc[prev_decision, "reward_X"])
                 )
                 return decision[0]
 
@@ -266,9 +301,19 @@ class Player:
             return False
 
     def beautify_board(self, row):
-        print(row[0], row[1], row[2], "\n")
-        print(row[3], row[4], row[5], "\n")
-        print(row[6], row[7], row[8], "\n")
+        output = row.loc[range(9)]
+        for box in range(9):
+            if output[box] == " ":
+                output[box] = "-" + str(box + 1) + "-"
+            else:
+                output[box] = " " + output[box] + " "
+        print(" —————————")
+        print("|", output[0], "|", output[1], "|", output[2], "|")
+        print(" —————————")
+        print("|", output[3], "|", output[4], "|", output[5], "|")
+        print(" —————————")
+        print("|", output[6], "|", output[7], "|", output[8], "|")
+        print(" —————————")
 
     def display_board(self, df_num, row):
         if df_num == 0:
@@ -286,3 +331,19 @@ class Player:
         else:
             self.beautify_board(self.df_6.loc[row])
 
+    def save_dfs(self, database):
+        if not os.path.exists(database):
+            os.mkdir(database)
+        self.df_6.to_csv(database + "/df_6.csv", index=False)
+        self.df_5.to_csv(database + "/df_5.csv", index=False)
+        self.df_4.to_csv(database + "/df_4.csv", index=False)
+        self.df_3.to_csv(database + "/df_3.csv", index=False)
+        self.df_2.to_csv(database + "/df_2.csv", index=False)
+        self.df_1.to_csv(database + "/df_1.csv", index=False)
+        self.df_0.to_csv(database + "/df_0.csv", index=False)
+
+    def set_epsilon(self, epsilon):
+        self._epsilon = epsilon
+
+    def set_alpha(self, alpha):
+        self._alpha = alpha
